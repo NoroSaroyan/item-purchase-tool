@@ -8,24 +8,18 @@
  */
 public with sharing class PurchaseService {
 
-    /**
-     * @description
-     * Searches for Purchase__c records matching the search term in Purchase name or Account name.
-     * 
-     * @param searchTerm Term to match in Name or Account__r.Name
-     * @return List of matching Purchase__c records
-     */
     @AuraEnabled(cacheable=true)
     public static List<Purchase__c> getPurchases(String searchTerm) {
-        PurchaseToolUtils.requireNonNullOrEmpty(searchTerm, 'Search Term');
+        PurchaseToolUtils.requireNonEmpty(searchTerm, 'Search Term');
         String filter = '%' + String.escapeSingleQuotes(searchTerm) + '%';
 
         try {
             return [
-                SELECT Id, Name, Account__c, Account__r.Name, Purchase_Date__c, Status__c, Total_Amount__c
+                SELECT Id, Name, ClientId__c, ClientId__r.Name, 
+                       GrandTotal__c, TotalItems__c
                 FROM Purchase__c
-                WHERE Name LIKE :filter OR Account__r.Name LIKE :filter
-                ORDER BY Purchase_Date__c DESC
+                WHERE Name LIKE :filter OR ClientId__r.Name LIKE :filter
+                ORDER BY CreatedDate DESC
                 LIMIT 100
             ];
         } catch (Exception e) {
@@ -34,17 +28,11 @@ public with sharing class PurchaseService {
         }
     }
 
-    /**
-     * @description
-     * Saves or updates a Purchase__c record. Validates input before persisting.
-     * 
-     * @param purchase Purchase__c record to save
-     * @return Saved Purchase__c
-     */
     @AuraEnabled
     public static Purchase__c savePurchase(Purchase__c purchase) {
+        validatePurchase(purchase);
+
         try {
-            validatePurchase(purchase);
             upsert purchase;
             return purchase;
         } catch (DmlException e) {
@@ -53,42 +41,20 @@ public with sharing class PurchaseService {
         }
     }
 
-    /**
-     * @description
-     * Internal validation for Purchase__c record.
-     * Enforces: non-null fields, valid date, allowed status values.
-     */
     private static void validatePurchase(Purchase__c purchase) {
-        PurchaseToolUtils.requireNonNull(purchase.Purchase_Date__c, 'Purchase Date');
-        PurchaseToolUtils.requireNonNull(purchase.Account__c, 'Account');
-
-        if (purchase.Purchase_Date__c > Date.today()) {
-            PurchaseToolUtils.throwException('Purchase Date cannot be in the future.');
-        }
-
-        Set<String> allowedStatuses = new Set<String>{'New', 'Approved', 'Cancelled'};
-        if (purchase.Status__c != null && !allowedStatuses.contains(purchase.Status__c)) {
-            PurchaseToolUtils.throwException('Invalid purchase status: ' + purchase.Status__c);
-        }
-
-        // Future extension: validate Account status, role-based permissions, etc.
+        PurchaseToolUtils.requireNonNull(purchase.ClientId__c, 'Client');
+        // Additional validation can be added here as needed
     }
 
-    /**
-     * @description
-     * Fetches all PurchaseLine__c records related to a specific Purchase__c.
-     * 
-     * @param purchaseId ID of the Purchase__c
-     * @return List of PurchaseLine__c records
-     */
     @AuraEnabled(cacheable=true)
     public static List<PurchaseLine__c> getPurchaseLines(Id purchaseId) {
         PurchaseToolUtils.requireNonNull(purchaseId, 'Purchase Id');
+
         try {
             return [
-                SELECT Id, Purchase__c, Item__c, Quantity__c, Unit_Price__c, Total_Price__c
+                SELECT Id, PurchaseId__c, ItemId__c, Amount__c, UnitCost__c
                 FROM PurchaseLine__c
-                WHERE Purchase__c = :purchaseId
+                WHERE PurchaseId__c = :purchaseId
                 ORDER BY CreatedDate
             ];
         } catch (Exception e) {
@@ -97,12 +63,6 @@ public with sharing class PurchaseService {
         }
     }
 
-    /**
-     * @description
-     * Saves a list of PurchaseLine__c records and updates the parent Purchase total.
-     * 
-     * @param lines List of PurchaseLine__c to save
-     */
     @AuraEnabled
     public static void savePurchaseLines(List<PurchaseLine__c> lines) {
         if (lines == null || lines.isEmpty()) {
@@ -110,60 +70,70 @@ public with sharing class PurchaseService {
         }
 
         try {
+            Id purchaseId;
             for (PurchaseLine__c line : lines) {
-                PurchaseToolUtils.requireNonNull(line.Quantity__c, 'Quantity');
-                PurchaseToolUtils.requirePositive(line.Quantity__c, 'Quantity');
-                PurchaseToolUtils.requireNonNull(line.Unit_Price__c, 'Unit Price');
-                PurchaseToolUtils.requirePositive(line.Unit_Price__c, 'Unit Price');
-                line.Total_Price__c = line.Quantity__c * line.Unit_Price__c;
+                PurchaseToolUtils.requireNonNull(line.PurchaseId__c, 'Purchase');
+                PurchaseToolUtils.requireNonNull(line.ItemId__c, 'Item');
+                PurchaseToolUtils.requirePositive(line.Amount__c, 'Amount');
+                PurchaseToolUtils.requirePositive(line.UnitCost__c, 'Unit Cost');
+
+                purchaseId = line.PurchaseId__c;
             }
 
             upsert lines;
-            recalcPurchaseTotal(lines[0].Purchase__c);
+
+            if (purchaseId != null) {
+                recalcPurchaseTotal(purchaseId);
+            }
         } catch (DmlException e) {
             PurchaseToolUtils.throwException('Failed to save Purchase Lines: ' + e.getMessage());
         }
     }
 
-    /**
-     * @description
-     * Deletes a Purchase__c record and all its related PurchaseLine__c records.
-     * 
-     * @param purchaseId ID of Purchase__c to delete
-     */
     @AuraEnabled
     public static void deletePurchase(Id purchaseId) {
         PurchaseToolUtils.requireNonNull(purchaseId, 'Purchase Id');
 
         try {
             List<PurchaseLine__c> linesToDelete = [
-                SELECT Id FROM PurchaseLine__c WHERE Purchase__c = :purchaseId
+                SELECT Id FROM PurchaseLine__c WHERE PurchaseId__c = :purchaseId
             ];
 
             delete linesToDelete;
-            delete [SELECT Id FROM Purchase__c WHERE Id = :purchaseId];
+
+            delete new Purchase__c(Id = purchaseId);
         } catch (DmlException e) {
             PurchaseToolUtils.throwException('Failed to delete Purchase: ' + e.getMessage());
         }
     }
 
-    /**
-     * @description
-     * Recalculates and updates the Total_Amount__c on Purchase__c
-     * by summing its PurchaseLine__c.Total_Price__c values.
-     * 
-     * @param purchaseId ID of the Purchase__c
-     */
     public static void recalcPurchaseTotal(Id purchaseId) {
-        AggregateResult result = [
-            SELECT SUM(Total_Price__c) total
-            FROM PurchaseLine__c
-            WHERE Purchase__c = :purchaseId
-        ];
+        try {
+            // Get all purchase lines for this purchase
+            List<PurchaseLine__c> lines = [
+                SELECT Amount__c, UnitCost__c
+                FROM PurchaseLine__c
+                WHERE PurchaseId__c = :purchaseId
+            ];
 
-        Decimal total = (Decimal)result.get('total');
-        if (total == null) total = 0;
+            Decimal totalItems = 0;
+            Decimal grandTotal = 0;
+            
+            for (PurchaseLine__c line : lines) {
+                Decimal amount = line.Amount__c != null ? line.Amount__c : 0;
+                Decimal unitCost = line.UnitCost__c != null ? line.UnitCost__c : 0;
+                
+                totalItems += amount;
+                grandTotal += amount * unitCost;
+            }
 
-        update new Purchase__c(Id = purchaseId, Total_Amount__c = total);
+            update new Purchase__c(
+                Id = purchaseId, 
+                TotalItems__c = totalItems,
+                GrandTotal__c = grandTotal
+            );
+        } catch (Exception e) {
+            PurchaseToolUtils.throwException('Failed to recalculate Purchase total: ' + e.getMessage());
+        }
     }
 }

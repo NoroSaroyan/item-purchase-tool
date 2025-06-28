@@ -8,9 +8,8 @@ public with sharing class ItemService {
     public static List<Item__c> searchItems(String keyword) {
         String searchTerm = '%' + String.escapeSingleQuotes(keyword == null ? '' : keyword.trim()) + '%';
 
-        // Modify fields as needed for your UI
         return [
-            SELECT Id, Name, Description__c, Price__c, Image__c
+            SELECT Id, Name, Description__c, Price__c, Image__c, Family__c, Type__c
             FROM Item__c
             WHERE Name LIKE :searchTerm OR Description__c LIKE :searchTerm
             ORDER BY Name
@@ -28,7 +27,7 @@ public with sharing class ItemService {
         }
 
         return [
-            SELECT Id, Name, Description__c, Price__c, Image__c
+            SELECT Id, Name, Description__c, Price__c, Image__c, Family__c, Type__c
             FROM Item__c
             WHERE Id = :itemId
             LIMIT 1
