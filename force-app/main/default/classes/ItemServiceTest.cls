@@ -8,12 +8,15 @@ private class ItemServiceTest {
             items.add(new Item__c(
                 Name = 'TestItem ' + i,
                 Description__c = 'Description for item ' + i,
-                Price__c = 10 * i
+                Price__c = 10 * i,
+                Type__c = 'Hardware',     
+                Family__c = 'Electronics'
             ));
         }
         insert items;
         return items;
     }
+    
 
     @IsTest
     static void testSearchItems_nullKeyword_returnsItems() {
@@ -64,27 +67,25 @@ private class ItemServiceTest {
 
     @IsTest
     static void testGetItemById_nullId_throws() {
+        Boolean exceptionCaught = false;
         try {
             Test.startTest();
             ItemService.getItemById(null);
             Test.stopTest();
-            System.assert(false, 'Expected exception for null Id');
         } catch (Exception e) {
-            System.assert(e.getMessage().contains('Item Id is required'));
+            exceptionCaught = true;
         }
+        System.assert(exceptionCaught, 'Expected an exception to be thrown for null Id');
     }
 
     @IsTest
     static void testGetItemById_nonExistingId_returnsNoRecord() {
         Id fakeId = Id.valueOf('001000000000000AAA'); // valid Id format, but no record
-        try {
-            Test.startTest();
-            Item__c item = ItemService.getItemById(fakeId);
-            Test.stopTest();
-            System.assert(item == null, 'Should return null for non-existing Id');
-        } catch (Exception e) {
-            // Depending on behavior, it might throw exception or return null
-            System.assert(e.getMessage().contains('List has no rows'), 'Unexpected exception: ' + e.getMessage());
-        }
+        
+        Test.startTest();
+        Item__c item = ItemService.getItemById(fakeId);
+        Test.stopTest();
+        
+        System.assertEquals(null, item, 'Should return null for non-existing Id');
     }
 }

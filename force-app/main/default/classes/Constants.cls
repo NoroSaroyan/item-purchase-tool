@@ -1,7 +1,7 @@
 public class Constants {
     // Object API Names
     public static final String PURCHASE_OBJECT = 'Purchase__c';
-    public static final String PURCHASE_LINE_OBJECT = 'PurchaseLine__c';
+    public static final String PURCHASE_LINE_OBJECT = 'Purchase_Line__c';
     public static final String ITEM_OBJECT = 'Item__c';
 
     // Purchase__c Fields
@@ -11,7 +11,7 @@ public class Constants {
     public static final String PURCHASE_TOTAL_ITEMS = 'TotalItems__c';
     public static final String PURCHASE_OWNER = 'OwnerId';
 
-    // PurchaseLine__c Fields
+    // Purchase_Line__c Fields
     public static final String PURCHASE_LINE_NAME = 'Name';
     public static final String PURCHASE_LINE_PURCHASE = 'PurchaseId__c';
     public static final String PURCHASE_LINE_ITEM = 'ItemId__c';

@@ -11,14 +11,14 @@ public with sharing class ItemService {
         return [
             SELECT Id, Name, Description__c, Price__c, Image__c, Family__c, Type__c
             FROM Item__c
-            WHERE Name LIKE :searchTerm OR Description__c LIKE :searchTerm
+            WHERE Name LIKE :searchTerm
             ORDER BY Name
             LIMIT 50
         ];
     }
 
     /**
-     * Fetches a specific Item by Id — useful if you need item details in cart summary or similar
+     * Fetches a specific Item by Id.
      */
     @AuraEnabled(cacheable=true)
     public static Item__c getItemById(Id itemId) {
@@ -26,11 +26,13 @@ public with sharing class ItemService {
             throw new AuraHandledException('Item Id is required');
         }
 
-        return [
+        List<Item__c> items = [
             SELECT Id, Name, Description__c, Price__c, Image__c, Family__c, Type__c
             FROM Item__c
             WHERE Id = :itemId
             LIMIT 1
         ];
+        
+        return items.isEmpty() ? null : items[0];
     }
 }

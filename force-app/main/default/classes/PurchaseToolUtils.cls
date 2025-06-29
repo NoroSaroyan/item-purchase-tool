@@ -25,7 +25,7 @@ public with sharing class PurchaseToolUtils {
      * @param fieldName Name of the field for the error message
      */
     public static void requireNonEmpty(String value, String fieldName) {
-        if (value == null || value.trim().isEmpty()) {
+        if (value == null || value.trim().length() == 0) {
             throwException(fieldName + ' is required and cannot be empty.');
         }
     }

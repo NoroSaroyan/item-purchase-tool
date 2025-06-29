@@ -47,13 +47,13 @@ public with sharing class PurchaseService {
     }
 
     @AuraEnabled(cacheable=true)
-    public static List<PurchaseLine__c> getPurchaseLines(Id purchaseId) {
+    public static List<Purchase_Line__c> getPurchaseLines(Id purchaseId) {
         PurchaseToolUtils.requireNonNull(purchaseId, 'Purchase Id');
 
         try {
             return [
                 SELECT Id, PurchaseId__c, ItemId__c, Amount__c, UnitCost__c
-                FROM PurchaseLine__c
+                FROM Purchase_Line__c
                 WHERE PurchaseId__c = :purchaseId
                 ORDER BY CreatedDate
             ];
@@ -64,14 +64,14 @@ public with sharing class PurchaseService {
     }
 
     @AuraEnabled
-    public static void savePurchaseLines(List<PurchaseLine__c> lines) {
+    public static void savePurchaseLines(List<Purchase_Line__c> lines) {
         if (lines == null || lines.isEmpty()) {
             PurchaseToolUtils.throwException('Purchase lines list cannot be empty.');
         }
 
         try {
             Id purchaseId;
-            for (PurchaseLine__c line : lines) {
+            for (Purchase_Line__c line : lines) {
                 PurchaseToolUtils.requireNonNull(line.PurchaseId__c, 'Purchase');
                 PurchaseToolUtils.requireNonNull(line.ItemId__c, 'Item');
                 PurchaseToolUtils.requirePositive(line.Amount__c, 'Amount');
@@ -95,8 +95,8 @@ public with sharing class PurchaseService {
         PurchaseToolUtils.requireNonNull(purchaseId, 'Purchase Id');
 
         try {
-            List<PurchaseLine__c> linesToDelete = [
-                SELECT Id FROM PurchaseLine__c WHERE PurchaseId__c = :purchaseId
+            List<Purchase_Line__c> linesToDelete = [
+                SELECT Id FROM Purchase_Line__c WHERE PurchaseId__c = :purchaseId
             ];
 
             delete linesToDelete;
@@ -110,16 +110,16 @@ public with sharing class PurchaseService {
     public static void recalcPurchaseTotal(Id purchaseId) {
         try {
             // Get all purchase lines for this purchase
-            List<PurchaseLine__c> lines = [
+            List<Purchase_Line__c> lines = [
                 SELECT Amount__c, UnitCost__c
-                FROM PurchaseLine__c
+                FROM Purchase_Line__c
                 WHERE PurchaseId__c = :purchaseId
             ];
 
             Decimal totalItems = 0;
             Decimal grandTotal = 0;
             
-            for (PurchaseLine__c line : lines) {
+            for (Purchase_Line__c line : lines) {
                 Decimal amount = line.Amount__c != null ? line.Amount__c : 0;
                 Decimal unitCost = line.UnitCost__c != null ? line.UnitCost__c : 0;
                 
