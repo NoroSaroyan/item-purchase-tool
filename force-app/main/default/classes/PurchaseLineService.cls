@@ -55,6 +55,32 @@ public with sharing class PurchaseLineService {
     }
 
     /**
+     * Saves or updates a list o PurchaseLine__c records.
+     * Updates the parent Purchase totals.
+     */
+    public static List<PurchaseLine__c> batchSaveLines(List<PurchaseLine__c> lines) {
+        if (lines == null || lines.isEmpty()) {
+            throw PurchaseToolUtils.throwException('List of purchase lines cannot be empty');
+        }
+    
+        Set<Id> purchaseIds = new Set<Id>();
+    
+        for (PurchaseLine__c line : lines) {
+            validateLine(line); // можно вызвать reuse
+            purchaseIds.add(line.PurchaseId__c);
+        }
+    
+        upsert lines;
+    
+        // Recalculate totals once per PurchaseId
+        for (Id pid : purchaseIds) {
+            PurchaseService.recalcPurchaseTotal(pid);
+        }
+    
+        return lines;
+    }    
+
+    /**
      * Deletes a list of PurchaseLine__c records by IDs and updates affected parent Purchase totals.
      */
     @AuraEnabled
